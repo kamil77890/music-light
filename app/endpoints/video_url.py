@@ -1,29 +1,29 @@
 import re
-from fastapi import APIRouter, Request, Query
-from fastapi.responses import JSONResponse
+from flask import Blueprint, request, jsonify
 from app.authorization import login_decorator
 from app.logic.fetch_video import fetch_info
 
-router = APIRouter(tags=["video"])
+router = Blueprint('video_url', __name__)
 
 VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 
+@router.route("/video-url", methods=["GET"])
 @login_decorator
-@router.get("/video-url")
-async def video_url(request: Request, videoId: str = Query(..., min_length=11, max_length=11)):
-    if not VIDEO_ID_RE.fullmatch(videoId):
-        return JSONResponse(
-            {"error": "Nieprawidłowy videoId: oczekiwane 11 znaków [A-Za-z0-9_-]"},
-            status_code=400,
-        )
+def video_url():
+    videoId = request.args.get("videoId")
+    
+    if not videoId or not VIDEO_ID_RE.fullmatch(videoId):
+        return jsonify(
+            {"error": "Nieprawidłowy videoId: oczekiwane 11 znaków [A-Za-z0-9_-]"}
+        ), 400
 
     try:
         info = fetch_info(videoId)
     except Exception as e:
-        return JSONResponse(
-            {"error": "Błąd przetwarzania", "details": str(e)}, status_code=500
-        )
+        return jsonify(
+            {"error": "Błąd przetwarzania", "details": str(e)}
+        ), 500
 
     chosen = next(
         (
@@ -35,13 +35,13 @@ async def video_url(request: Request, videoId: str = Query(..., min_length=11, m
     )
 
     if not chosen or "url" not in chosen:
-        return JSONResponse({"error": "Brak formatu audio+video"}, status_code=500)
+        return jsonify({"error": "Brak formatu audio+video"}), 500
 
-    return {
+    return jsonify({
         "title": info.get("title"),
         "format": chosen.get("format_id"),
         "ext": chosen.get("ext"),
         "mime_type": chosen.get("mime_type"),
         "url": chosen.get("url"),
         "expires_in": info.get("_signature_timestamp"),
-    }
+    })

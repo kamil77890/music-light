@@ -1,12 +1,13 @@
-from fastapi import HTTPException, Request
-from typing import Callable
+from flask import request, jsonify
+from functools import wraps
 
 
-def login_decorator(endpoint: Callable):
-    async def wrapper(request: Request, *args, **kwargs):
+def login_decorator(endpoint):
+    @wraps(endpoint)
+    def wrapper(*args, **kwargs):
         token = request.headers.get("token")
         if token == "cos":
-            return await endpoint(request, *args, **kwargs)
+            return endpoint(*args, **kwargs)
         else:
-            raise HTTPException(status_code=403, detail="Brak dostępu")
+            return jsonify({"error": "Brak dostępu"}), 403
     return wrapper

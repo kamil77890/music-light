@@ -1,12 +1,11 @@
-from fastapi import APIRouter, Request
-from app.authorization import login_decorator
+from flask import Blueprint, jsonify
 
-router = APIRouter(tags=["home"])
+router = Blueprint('home', __name__)
 
-@login_decorator
-@router.get("/")
-async def home(request: Request):
-    return {
+
+@router.route("/", methods=["GET"])
+def home():
+    return jsonify({
         "/cloud/config": "GET /cloud/config",
         "/cloud/catalog": "GET /cloud/catalog?max_keys=50",
         "/cloud/upload": 'POST /cloud/upload (Body: {"directory": "/optional/path"})',
@@ -18,4 +17,4 @@ async def home(request: Request):
         "/get/id": "GET /get/id",
         "/title": "GET /title?videoId=dQw4w9WgXcQ",
         "/Register": "GET /Register (Headers: {'token': 'your_token'})"
-    }
+    })

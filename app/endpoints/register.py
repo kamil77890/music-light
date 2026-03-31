@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Request
+from flask import Blueprint, request, jsonify
 from app.authorization import login_decorator
 
-router = APIRouter(tags=["Register"])
+router = Blueprint('register', __name__)
 
 TOKEN = {"token": ""}
 
 
-@router.get("/Register")
+@router.route("/Register", methods=["GET"])
 @login_decorator
-async def register(request: Request):
+def register():
     token = request.headers.get("token")
     TOKEN["token"] = token
-    return {"TOKEN": TOKEN["token"]}
+    return jsonify({"TOKEN": TOKEN["token"]})

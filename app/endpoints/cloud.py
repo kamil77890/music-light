@@ -5,28 +5,22 @@ import os
 import traceback
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from flask import Blueprint, request, jsonify
 
 from app.config.stałe import Parameters
 from app.logic import b2_storage
 
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger("werkzeug")
 
-router = APIRouter(prefix="/cloud", tags=["cloud"])
-
-
-class UploadBody(BaseModel):
-
-    directory: Optional[str] = None
+router = Blueprint('cloud', __name__, url_prefix='/cloud')
 
 
-@router.get("/config")
+@router.route("/config", methods=["GET"])
 def cloud_config():
     try:
-        return b2_storage.get_cloud_config()
+        return jsonify(b2_storage.get_cloud_config())
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return jsonify({"error": str(exc)}), 500
 
 
 def _b2_catalog_detail(exc: Exception) -> str:
@@ -39,31 +33,33 @@ def _b2_catalog_detail(exc: Exception) -> str:
     return s
 
 
-@router.get("/catalog")
-def cloud_catalog(max_keys: int = 500):
+@router.route("/catalog", methods=["GET"])
+def cloud_catalog():
     """List audio objects under `music/` with direct HTTPS URLs."""
+    max_keys = request.args.get("max_keys", 500, type=int)
     try:
         items = b2_storage.list_music_objects(max_keys=max_keys)
-        return {"items": items, "count": len(items)}
+        return jsonify({"items": items, "count": len(items)})
     except Exception as exc:
         logger.exception("GET /cloud/catalog failed: %s", exc)
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=_b2_catalog_detail(exc)) from exc
+        return jsonify({"error": _b2_catalog_detail(exc)}), 500
 
 
-@router.post("/upload")
-def cloud_upload(body: UploadBody = UploadBody()):
+@router.route("/upload", methods=["POST"])
+def cloud_upload():
     """
     Upload all local audio files from the download directory to B2 under `music/`.
     Uses the same root as the app (`FILEPATH` env or default).
     """
-    root = body.directory or Parameters.get_download_dir()
+    data = request.get_json(silent=True) or {}
+    root = data.get("directory") or Parameters.get_download_dir()
     root = os.path.abspath(root)
     if not os.path.isdir(root):
-        raise HTTPException(status_code=400, detail=f"Directory not found: {root}")
+        return jsonify({"error": f"Directory not found: {root}"}), 400
 
     try:
         up, fail = b2_storage.upload_directory_to_b2(root, prefix="music")
-        return {"ok": True, "uploaded": up, "failed": fail, "root": root}
+        return jsonify({"ok": True, "uploaded": up, "failed": fail, "root": root})
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return jsonify({"error": str(exc)}), 500
